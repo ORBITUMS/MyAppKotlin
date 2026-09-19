@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -16,11 +17,40 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.with
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -34,7 +64,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import kotlin.random.Random
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.clip
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,16 +84,21 @@ val richLightGradient = Brush.verticalGradient(
     colors = listOf(Color(0xFFFFFDF9), Color(0xFFF9EED8))
 )
 
-// Цвета для игры "Струп"
 data class GameColor(val name: String, val color: Color)
+// Настоящая, сочная 8-битная палитра из 9 цветов
 val gameColors = listOf(
-    GameColor("Красный", Color(0xFFFF6B6B)),
-    GameColor("Голубой", Color(0xFF4DADFF)),
-    GameColor("Жёлтый", Color(0xFFFFD93D)),
-    GameColor("Зелёный", Color(0xFF6BCB77)),
-    GameColor("Пурпурный", Color(0xFFD67BFF)),
-    GameColor("Синий", Color(0xFF4B65F6))
+    GameColor("Красный", Color(0xFFFF0000)),       // Чистый красный
+    GameColor("Голубой", Color(0xFF00D2FF)),       // Неоново-голубой
+    GameColor("Жёлтый", Color(0xFFFFD700)),        // Золотой 8-bit жёлтый
+    GameColor("Зелёный", Color(0xFF00FF00)),       // Ядовито-зелёный
+    GameColor("Пурпурный", Color(0xFFFF00FF)),     // Пурпурный / Маджента
+    GameColor("Синий", Color(0xFF0000FF)),         // Глубокий синий
+    // Твои 3 новых цвета:
+    GameColor("Чёрный", Color(0xFF1A1A1A)),        // Мягкий чёрный (чтобы текст внутри был виден)
+    GameColor("Фиолетовый", Color(0xFF4B0082)), // Тёмно-фиолетовый (Индиго)
+    GameColor("Розовый", Color(0xFFFF69B4))        // Ярко-розовый
 )
+
 
 @Composable
 fun AppNavigation() {
@@ -77,10 +118,23 @@ fun AppNavigation() {
 @Composable
 fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
     val context = LocalContext.current
+
+    // Группируем состояния для удобства читаемости
     var showPromoDialog by remember { mutableStateOf(false) }
     var promoInput by remember { mutableStateOf("") }
     var isCodeAccepted by remember { mutableStateOf(false) }
     var balanceInput by remember { mutableStateOf("") }
+
+    // Выносим SharedPreferences в отдельную переменную, чтобы не создавать её внутри onClick каждый раз
+    val sharedPreferences = remember { context.getSharedPreferences("casino_prefs", Context.MODE_PRIVATE) }
+
+    // Функция для сброса диалога (чтобы не дублировать код в трёх местах!)
+    val resetDialog = {
+        showPromoDialog = false
+        promoInput = ""
+        balanceInput = ""
+        isCodeAccepted = false
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(richLightGradient),
@@ -90,13 +144,14 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
         Text(text = "Главное меню", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3E25))
         Spacer(modifier = Modifier.height(40.dp))
 
-        Button(onClick = { onNavigateToSecond() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8D734B)), modifier = Modifier.width(220.dp)) {
-            Text(text = "Перейти к игре", fontSize = 16.sp, color = Color.White)
+        // Избавляемся от лишних фигурных скобок: вместо { onNavigateToSecond() } пишем напрямую ссылку на функцию
+        Button(onClick = onNavigateToSecond, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8D734B)), modifier = Modifier.width(220.dp)) {
+            Text(text = "игра в цвета", fontSize = 16.sp, color = Color.White)
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = { onNavigateToThird() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3E2723)), modifier = Modifier.width(220.dp)) {
-            Text(text = "🎰 Казино Рояль", fontSize = 16.sp, color = Color.White)
+        Button(onClick = onNavigateToThird, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3E2723)), modifier = Modifier.width(220.dp)) {
+            Text(text = "🎰 Казино времени", fontSize = 16.sp, color = Color.White)
         }
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -107,12 +162,7 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
 
     if (showPromoDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showPromoDialog = false
-                promoInput = ""
-                balanceInput = ""
-                isCodeAccepted = false
-            },
+            onDismissRequest = resetDialog,
             title = {
                 Text(
                     text = if (!isCodeAccepted) "Ввод промокода" else "Режим разработчика ⚙️",
@@ -132,11 +182,16 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
                             colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
                         )
                     } else {
-                        Text(text = "Код успешно активирован! Введите желаемый баланс для казино:", modifier = Modifier.padding(bottom = 8.dp))
+                        Text(text = "Код успешно активирован! Введите желаемый баланс:", modifier = Modifier.padding(bottom = 8.dp))
                         TextField(
                             value = balanceInput,
-                            onValueChange = { balanceInput = it.filter { char -> char.isDigit() } },
-                            placeholder = { Text("Пример: 5000") },
+                            // Ограничиваем ввод 7 цифрами, чтобы избежать переполнения Int (защита от краша/бага)
+                            onValueChange = { input ->
+                                if (input.length <= 7) {
+                                    balanceInput = input.filter { it.isDigit() }
+                                }
+                            },
+                            placeholder = { Text("...") },
                             singleLine = true,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                             colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
@@ -147,48 +202,31 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
             confirmButton = {
                 Button(
                     onClick = {
-                        val sharedPreferences = context.getSharedPreferences("casino_prefs", Context.MODE_PRIVATE)
-
                         if (!isCodeAccepted) {
-                            val cleanInput = promoInput.trim()
+                            when (promoInput.trim()) {
+                                "7772" -> isCodeAccepted = true
+                                "777" -> {
+                                    val isPromoUsed = sharedPreferences.getBoolean("promo_777_used", false)
+                                    if (isPromoUsed) {
+                                        Toast.makeText(context, "Этот промокод уже активирован! ❌", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        val currentBalance = sharedPreferences.getInt("balance", 100)
+                                        sharedPreferences.edit()
+                                            .putInt("balance", currentBalance + 250)
+                                            .putBoolean("promo_777_used", true)
+                                            .apply()
 
-                            if (cleanInput == "7772") {
-                                // Секретный код разработчика (остаётся многоразовым для тестов)
-                                isCodeAccepted = true
-                            } else if (cleanInput == "777") {
-                                // Проверяем, был ли промокод использован ранее
-                                val isPromoUsed = sharedPreferences.getBoolean("promo_777_used", false)
-
-                                if (isPromoUsed) {
-                                    Toast.makeText(context, "Этот промокод уже активирован! ❌", Toast.LENGTH_LONG).show()
-                                } else {
-                                    // Начисляем бонус
-                                    val currentBalance = sharedPreferences.getInt("balance", 100)
-                                    val newBalance = currentBalance + 250
-
-                                    // Сохраняем новый баланс и помечаем промокод как использованный
-                                    sharedPreferences.edit()
-                                        .putInt("balance", newBalance)
-                                        .putBoolean("promo_777_used", true)
-                                        .apply()
-
-                                    Toast.makeText(context, "Промокод активирован! Получено +250 💰", Toast.LENGTH_LONG).show()
-                                    showPromoDialog = false
-                                    promoInput = ""
+                                        Toast.makeText(context, "Промокод активирован! Получено +250 💰", Toast.LENGTH_LONG).show()
+                                        resetDialog()
+                                    }
                                 }
-                            } else {
-                                Toast.makeText(context, "Неверный код ❌", Toast.LENGTH_SHORT).show()
+                                else -> Toast.makeText(context, "Неверный код ❌", Toast.LENGTH_SHORT).show()
                             }
                         } else {
-                            // Применение баланса из режима разработчика
                             val newBalance = balanceInput.toIntOrNull() ?: 0
                             sharedPreferences.edit().putInt("balance", newBalance).apply()
-
                             Toast.makeText(context, "Баланс успешно изменён на $newBalance 💰", Toast.LENGTH_SHORT).show()
-                            showPromoDialog = false
-                            promoInput = ""
-                            balanceInput = ""
-                            isCodeAccepted = false
+                            resetDialog()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8D734B))
@@ -197,12 +235,7 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showPromoDialog = false
-                    promoInput = ""
-                    balanceInput = ""
-                    isCodeAccepted = false
-                }) {
+                TextButton(onClick = resetDialog) {
                     Text(text = "Отмена", color = Color.Gray)
                 }
             },
@@ -211,101 +244,148 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
         )
     }
 }
-
-
 @Composable
 fun SecondScreen(onBackToMenu: () -> Unit) {
     val context = LocalContext.current
     val sharedPreferences = remember { context.getSharedPreferences("game_prefs", Context.MODE_PRIVATE) }
+
     var score by remember { mutableStateOf(0) }
     var highScore by remember { mutableStateOf(sharedPreferences.getInt("high_score", 0)) }
+
     var bgIndex by remember { mutableStateOf(0) }
     var textIndex by remember { mutableStateOf(1) }
 
+    // Константы кофейных цветов по твоей задумке
+    val coffeeSquareColor = Color(0xFF4A3B32)     // Светло-кофейный для большого квадрата
+    val darkCoffeeButtonColor = Color(0xFF261C14) // Тёмно-кофейный (почти чёрный) для кнопки выхода
+
     val nextRound = {
-        val newBg = Random.nextInt(6)
-        var newText = Random.nextInt(6)
-        while (newText == newBg) { newText = Random.nextInt(6) }
+        val newBg = Random.nextInt(gameColors.size)
+        var newText = Random.nextInt(gameColors.size)
+        // Гарантируем, что цвет круга и текст внутри не совпадут
+        while (newText == newBg) {
+            newText = Random.nextInt(gameColors.size)
+        }
         bgIndex = newBg
         textIndex = newText
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(richLightGradient)) {
-        Column(modifier = Modifier.fillMaxWidth().align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "Счёт: $score", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8D734B))
-            Text(text = "Рекорд: $highScore", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Color(0xFF4A3E25))
-            Spacer(modifier = Modifier.height(28.dp))
-            Box(modifier = Modifier.size(190.dp).background(gameColors[bgIndex].color, shape = CircleShape), contentAlignment = Alignment.Center) {
-                Text(text = gameColors[textIndex].name, fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White)
+    val onColorClick = { clickedIndex: Int ->
+        if (clickedIndex == textIndex) {
+            score++
+            if (score > highScore) {
+                highScore = score
+                sharedPreferences.edit().putInt("high_score", highScore).apply()
             }
-            Spacer(modifier = Modifier.height(48.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row {
-                    for (i in 0..2) {
-                        SmallColorButton(gameColor = gameColors[i], onClick = {
-                            if (i == textIndex) {
-                                score++
-                                if (score > highScore) {
-                                    highScore = score
-                                    sharedPreferences.edit().putInt("high_score", highScore).apply()
-                                }
-                            } else if (score > 0) { score-- }
-                            nextRound()
-                        })
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                // Второй ряд кнопок цветов
-                Row {
-                    for (i in 3..5) {
-                        SmallColorButton(gameColor = gameColors[i], onClick = {
-                            if (i == textIndex) {
-                                score++
-                                if (score > highScore) {
-                                    highScore = score
-                                    sharedPreferences.edit().putInt("high_score", highScore).apply()
-                                }
-                            } else if (score > 0) {
-                                score--
-                            }
-                            nextRound()
-                        })
-                    }
-                }
+        } else {
+            // НОВОЕ ПРАВИЛО: При ошибке счёт полностью сбрасывается в 0
+            score = 0
+        }
+        nextRound()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(richLightGradient)
+            .padding(bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Блок Счёта с плавной анимацией прокрутки цифр (Slide Down)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "Счёт: ", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8D734B))
+
+            // Магия Compose анимации: когда изменяется переменная score, старая цифра уезжает вниз, новая едет сверху
+            AnimatedContent(
+                targetState = score,
+                transitionSpec = {
+                    slideInVertically(animationSpec = tween(durationMillis = 300)) { height -> -height } togetherWith
+                            slideOutVertically(animationSpec = tween(durationMillis = 300)) { height -> height }
+                },
+                label = "ScoreAnimation"
+            ) { animatedScore ->
+                Text(text = "$animatedScore", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8D734B))
             }
         }
 
-        // Кнопка выхода (находится внутри Box, выровнена по нижнему центру)
-        Button(
-            onClick = { onBackToMenu() },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB13B3B)),
+        Text(text = "Рекорд: $highScore", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Color(0xFF4A3E25))
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // НОВОЕ: Большой Квадрат кофейного цвета
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
+                .size(260.dp)
+                .background(coffeeSquareColor, shape = RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            // Главный круг внутри квадрата
+            Box(
+                modifier = Modifier
+                    .size(190.dp)
+                    .background(gameColors[bgIndex].color, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                // ИСПРАВЛЕНО: Теперь выводится строго название цвета, а не рекорд!
+                Text(
+                    text = gameColors[textIndex].name,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Динамическая сетка кнопок (chunked(3) автоматически разделит 9 цветов на 3 ровных ряда по 3 кнопки!)
+        val buttonRows = remember { gameColors.withIndex().chunked(3) }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            for (row in buttonRows) {
+                Row {
+                    for ((index, gameColor) in row) {
+                        SmallColorButton(
+                            gameColor = gameColor,
+                            onClick = { onColorClick(index) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // ИСПРАВЛЕНО: Кнопка выхода теперь тёмно-кофейного (более чёрного) цвета
+        Button(
+            onClick = onBackToMenu,
+            colors = ButtonDefaults.buttonColors(containerColor = darkCoffeeButtonColor),
+            modifier = Modifier.width(260.dp)
         ) {
             Text(text = "Выйти на главный экран", fontSize = 16.sp, color = Color.White)
         }
     }
 }
-
 @Composable
 fun SmallColorButton(gameColor: GameColor, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .size(55.dp)
-            .background(gameColor.color, shape = CircleShape)
+            .clip(CircleShape) // Обрезаем клики и риппл-эффект по кругу
+            .background(gameColor.color)
             .clickable { onClick() }
     )
 }
+
 
 // --- ЭКРАН КАЗИНО ---
 
 class WinRecord(val id: Long, val amount: Int, isVisibleState: MutableState<Boolean>) {
     var isVisible by isVisibleState
 }
-
-
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun ThirdScreen(onBackToMenu: () -> Unit) {
@@ -317,7 +397,6 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
     var bet by remember { mutableStateOf(0) }
 
     val winRecords = remember { mutableStateListOf<WinRecord>() }
-
     val slotEmojis = listOf("7️⃣", "💎", "🔔", "🍉", "🍇", "🍋", "🍒")
 
     var slot1 by remember { mutableStateOf(0) }
@@ -338,18 +417,34 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
             .apply()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1A1A2E), Color(0xFF16213E))))) {
+    // ТАЙМЕР УТЕШИТЕЛЬНОГО ПРИЗА (работает независимо в фоне)
+    var lastBonusTime by remember { mutableStateOf(sharedPreferences.getLong("last_bonus_time", 0L)) }
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
-        // ВЕРХНЯЯ ПАНЕЛЬ: ТИТУЛ И VIP-ОКОШКО С ПЛАВНЫМ БАЛАНСОМ
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    // ГЛАВНЫЙ КОНТЕЙНЕР ЭКРАНА
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF1A1A2E), Color(0xFF16213E))))
+    ) {
+
+        // 1. ВЕРХНЯЯ ПАНЕЛЬ (Прижата к верху экрана)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 64.dp),
+                .align(Alignment.TopCenter)
+                .padding(top = 40.dp), // Чуть уменьшили отступ, чтобы освободить место кнопкам
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(text = "🎰 СЛОТ-МАШИНА", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
-
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -358,7 +453,7 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -366,16 +461,13 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                         Text(text = "МАКС. КУШ 🏆", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                         Text(text = "$maxWin", fontSize = 20.sp, color = Color(0xFFE94560), fontWeight = FontWeight.Black)
                     }
-
                     Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color(0xFF3A3F58)))
-
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = "БАЛАНС 💰", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-
                         AnimatedContent(
                             targetState = balance,
                             transitionSpec = {
-                                slideInVertically { height -> -height } + fadeIn() with
+                                slideInVertically { height -> -height } + fadeIn() togetherWith
                                         slideOutVertically { height -> height } + fadeOut()
                             }
                         ) { animatedBalance ->
@@ -386,70 +478,54 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
             }
         }
 
-        // Игровой автомат (барабаны)
+        // 2. ИГРОВОЙ АВТОМАТ (Строго по центру экрана)
         Card(
-            modifier = Modifier.size(340.dp, 160.dp).align(Alignment.Center).offset(y = (-30).dp),
+            modifier = Modifier
+                .size(340.dp, 150.dp)
+                .align(Alignment.Center),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0C20)),
             elevation = CardDefaults.cardElevation(12.dp)
         ) {
+            val slots = listOf(slot1, slot2, slot3)
+            val animOffsets = listOf(animOffsetY1, animOffsetY2, animOffsetY3)
+
             Row(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Барабан 1
-                Box(
-                    modifier = Modifier.size(80.dp).background(Color(0xFF1F1A3A), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = slotEmojis[slot1],
-                        fontSize = 42.sp,
-                        modifier = Modifier.offset(y = animOffsetY1.value.dp)
-                    )
-                }
-                // Барабан 2
-                Box(
-                    modifier = Modifier.size(80.dp).background(Color(0xFF1F1A3A), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = slotEmojis[slot2],
-                        fontSize = 42.sp,
-                        modifier = Modifier.offset(y = animOffsetY2.value.dp)
-                    )
-                }
-                // Барабан 3
-                Box(
-                    modifier = Modifier.size(80.dp).background(Color(0xFF1F1A3A), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = slotEmojis[slot3],
-                        fontSize = 42.sp,
-                        modifier = Modifier.offset(y = animOffsetY3.value.dp)
-                    )
+                for (i in 0..2) {
+                    Box(
+                        modifier = Modifier.size(80.dp).background(Color(0xFF1F1A3A), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = slotEmojis[slots[i]],
+                            fontSize = 42.sp,
+                            modifier = Modifier.offset(y = animOffsets[i].value.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // БЛОК УПРАВЛЕНИЯ СНИЗУ
+        // 3. БЛОК УПРАВЛЕНИЯ СНИЗУ (Прижат к самому низу экрана)
         Column(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 20.dp), // Отступ от физического низа экрана
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
-            // ПРЕМИАЛЬНАЯ ЛЕНТА С ИДЕАЛЬНО ПЛАВНЫМ ЗАТУХАНИЕМ
+            // Премиальная лента выигрышей (сделали её чуть компактнее — 50dp, чтобы точно всё влезло)
             Box(
-                modifier = Modifier
-                    .height(70.dp)
-                    .fillMaxWidth(),
+                modifier = Modifier.height(50.dp).fillMaxWidth(),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.Bottom
                 ) {
                     winRecords.forEach { record ->
                         key(record.id) {
@@ -470,44 +546,33 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ПРЕМИАЛЬНОЕ ОКОШКО СТАВКИ С АНИМАЦИЕЙ СВЕРХУ ВНИЗ
+            // Окошко текущей ставки
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1F1A3A)),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = 8.dp),
                 border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFD4AF37))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "СТАВКА: ",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD4AF37)
-                    )
-
+                    Text(text = "СТАВКА: ", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
                     AnimatedContent(
                         targetState = bet,
                         transitionSpec = {
                             if (targetState > initialState) {
-                                slideInVertically { height -> -height } + fadeIn() with
+                                slideInVertically { height -> -height } + fadeIn() togetherWith
                                         slideOutVertically { height -> height } + fadeOut()
                             } else {
-                                slideInVertically { height -> height } + fadeIn() with
+                                slideInVertically { height -> height } + fadeIn() togetherWith
                                         slideOutVertically { height -> -height } + fadeOut()
                             }.using(androidx.compose.animation.SizeTransform(clip = false))
                         }
                     ) { animatedBet ->
-                        Text(
-                            text = "$animatedBet 💰",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFD4AF37)
-                        )
+                        Text(text = "$animatedBet 💰", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
                     }
                 }
             }
@@ -515,36 +580,28 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
             // Панель изменения ставок (-100, -10, +10, +100)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             ) {
-                Button(
-                    onClick = { bet = (bet - 100).coerceAtLeast(0) },
-                    enabled = !isSpinning && bet > 0,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F58)),
-                    contentPadding = PaddingValues(horizontal = 10.dp)
-                ) { Text("-100", color = Color.White) }
-
-                Button(
-                    onClick = { bet = (bet - 10).coerceAtLeast(0) },
-                    enabled = !isSpinning && bet > 0,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F58)),
-                    contentPadding = PaddingValues(horizontal = 10.dp)
-                ) { Text("-10", color = Color.White) }
-
-                Button(
-                    onClick = { bet = (bet + 10).coerceAtMost(balance) },
-                    enabled = !isSpinning && bet < balance,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F58)),
-                    contentPadding = PaddingValues(horizontal = 10.dp)
-                ) { Text("+10", color = Color.White) }
-
-                Button(
-                    onClick = { bet = (bet + 100).coerceAtMost(balance) },
-                    enabled = !isSpinning && bet < balance,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F58)),
-                    contentPadding = PaddingValues(horizontal = 10.dp)
-                ) { Text("+100", color = Color.White) }
+                val betSteps = listOf(-100, -10, 10, 100)
+                betSteps.forEach { step ->
+                    Button(
+                        onClick = {
+                            bet = if (step < 0) {
+                                (bet + step).coerceAtLeast(0)
+                            } else {
+                                (bet + step).coerceAtMost(balance)
+                            }
+                        },
+                        enabled = !isSpinning && (if (step < 0) bet > 0 else bet < balance),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3A3F58)),
+                        contentPadding = PaddingValues(horizontal = 10.dp)
+                    ) {
+                        Text(text = if (step > 0) "+$step" else "$step", color = Color.White)
+                    }
+                }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Кнопка КРУТИТЬ
             Button(
@@ -619,7 +676,7 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                                     )
                                     winRecords.add(newRecord)
 
-                                    coroutineScope.launch {
+                                    launch {
                                         kotlinx.coroutines.delay(2000)
                                         newRecord.isVisible = false
                                         kotlinx.coroutines.delay(500)
@@ -640,7 +697,7 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                     containerColor = Color(0xFFE94560),
                     disabledContainerColor = Color(0xFF552233)
                 ),
-                modifier = Modifier.width(240.dp).height(50.dp),
+                modifier = Modifier.width(240.dp).height(48.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
@@ -651,19 +708,9 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Таймер утешительного приза
-            var lastBonusTime by remember { mutableStateOf(sharedPreferences.getLong("last_bonus_time", 0L)) }
-            var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
-
-            LaunchedEffect(balance, bet) {
-                while (balance < 10 && bet == 0) {
-                    currentTime = System.currentTimeMillis()
-                    kotlinx.coroutines.delay(1000)
-                }
-            }
-
+            // Кнопка утешительного приза
             if (balance < 10 && bet == 0) {
                 val timePassed = currentTime - lastBonusTime
                 val cooldown = 30000L
@@ -673,7 +720,7 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                 Button(
                     onClick = {
                         if (isReady) {
-                            balance += 100
+                            balance += 30
                             lastBonusTime = System.currentTimeMillis()
                             sharedPreferences.edit().putLong("last_bonus_time", lastBonusTime).apply()
                             saveCasinoData(balance, maxWin)
@@ -684,25 +731,28 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                         containerColor = Color(0xFF4CAF50),
                         disabledContainerColor = Color(0xFF2E4F32)
                     ),
-                    modifier = Modifier.width(240.dp)
+                    modifier = Modifier.width(240.dp).height(40.dp),
+                    contentPadding = PaddingValues(0.0.dp)
                 ) {
                     Text(
-                        text = if (isReady) "Взять +100 монет 🎁" else "Бонус через ${secondsLeft}с ⏳",
-                        fontSize = 14.sp,
+                        text = if (isReady) "Взять +30 монет 🎁" else "Бонус через ${secondsLeft}с ⏳",
+                        fontSize = 13.sp,
                         color = if (isReady) Color.White else Color.LightGray
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
+            // Назад в меню
             Text(
                 text = "Назад в меню",
                 color = Color.Gray,
                 fontSize = 16.sp,
                 modifier = Modifier
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 4.dp)
                     .clickable { if (!isSpinning) onBackToMenu() }
             )
         }
     }
 }
+
