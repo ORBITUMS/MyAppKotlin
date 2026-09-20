@@ -1,6 +1,8 @@
 package com.example.myfirstapp
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -14,7 +16,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.with
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +35,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -53,24 +57,44 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.clip
-
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,28 +131,32 @@ fun AppNavigation() {
         composable("menu") {
             MenuScreen(
                 onNavigateToSecond = { navController.navigate("second") },
-                onNavigateToThird = { navController.navigate("third") }
+                onNavigateToThird = { navController.navigate("third") },
+                onNavigateToFourth = { navController.navigate("fourth") } // НОВЫЙ МАРШРУТ 🚚
             )
         }
         composable("second") { SecondScreen(onBackToMenu = { navController.popBackStack() }) }
         composable("third") { ThirdScreen(onBackToMenu = { navController.popBackStack() }) }
+        // Регистрируем сам четвертый экран (создай функцию FourthScreen ниже по коду аналогично другим)
+        composable("fourth") { FourthScreen(onBackToMenu = { navController.popBackStack() }) }
     }
 }
 
+
 @Composable
-fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
+fun MenuScreen(
+    onNavigateToSecond: () -> Unit,
+    onNavigateToThird: () -> Unit,
+    onNavigateToFourth: () -> Unit // Добавили новый аргумент для Мусор дропа
+) {
     val context = LocalContext.current
 
-    // Группируем состояния для удобства читаемости
+    // ... Твои состояния и resetDialog остаются БЕЗ ИЗМЕНЕНИЙ ...
     var showPromoDialog by remember { mutableStateOf(false) }
     var promoInput by remember { mutableStateOf("") }
     var isCodeAccepted by remember { mutableStateOf(false) }
     var balanceInput by remember { mutableStateOf("") }
-
-    // Выносим SharedPreferences в отдельную переменную, чтобы не создавать её внутри onClick каждый раз
     val sharedPreferences = remember { context.getSharedPreferences("casino_prefs", Context.MODE_PRIVATE) }
-
-    // Функция для сброса диалога (чтобы не дублировать код в трёх местах!)
     val resetDialog = {
         showPromoDialog = false
         promoInput = ""
@@ -144,22 +172,50 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
         Text(text = "Главное меню", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3E25))
         Spacer(modifier = Modifier.height(40.dp))
 
-        // Избавляемся от лишних фигурных скобок: вместо { onNavigateToSecond() } пишем напрямую ссылку на функцию
+        // 1. Игра в цвета
         Button(onClick = onNavigateToSecond, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8D734B)), modifier = Modifier.width(220.dp)) {
             Text(text = "игра в цвета", fontSize = 16.sp, color = Color.White)
         }
         Spacer(modifier = Modifier.height(16.dp))
 
+        // 2. Казино времени
         Button(onClick = onNavigateToThird, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3E2723)), modifier = Modifier.width(220.dp)) {
             Text(text = "🎰 Казино времени", fontSize = 16.sp, color = Color.White)
         }
         Spacer(modifier = Modifier.height(16.dp))
 
+        // 3. НОВАЯ КНОПКА: Мусор дроп
+        Button(
+            onClick = onNavigateToFourth,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4E5D4C)), // Кастомный болотный/зеленый цвет
+            modifier = Modifier.width(220.dp)
+        ) {
+            Text(text = "📦 Мусор дроп", fontSize = 16.sp, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 4. НОВАЯ КНОПКА: Переход на сайт по ссылке
+        Button(
+            onClick = {
+                // Механизм Intent открывает браузер поверх твоего приложения
+                val websiteIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://www.youtube.com/watch?v=7O-fpUwUtOI") // СЮДА ВПИШИ СВОЮ ССЫЛКУ (обязательно с http:// или https://)
+                )
+                context.startActivity(websiteIntent)
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E3A8A)), // Синий премиальный цвет
+            modifier = Modifier.width(220.dp)
+        ) {
+            Text(text = "игра тянка и карты", fontSize = 16.sp, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 5. Промокоды
         Button(onClick = { showPromoDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A3E25)), modifier = Modifier.width(220.dp)) {
             Text(text = "🎫 Промокоды", fontSize = 16.sp, color = Color.White)
         }
     }
-
     if (showPromoDialog) {
         AlertDialog(
             onDismissRequest = resetDialog,
@@ -203,30 +259,76 @@ fun MenuScreen(onNavigateToSecond: () -> Unit, onNavigateToThird: () -> Unit) {
                 Button(
                     onClick = {
                         if (!isCodeAccepted) {
-                            when (promoInput.trim()) {
-                                "7772" -> isCodeAccepted = true
-                                "777" -> {
-                                    val isPromoUsed = sharedPreferences.getBoolean("promo_777_used", false)
+                            val cleanInput = promoInput.trim()
+
+                            when (cleanInput) {
+                                "7773" -> {
+                                    // Секретный код разработчика для открытия ввода баланса
+                                    isCodeAccepted = true
+                                }
+                                "666" -> {
+                                    // НОВЫЙ КОД: Проклятый промокод 666 😈
+                                    // Оставляем его многоразовым для веселья, поэтому не проверяем через SharedPreferences
+                                    sharedPreferences.edit()
+                                        .putInt("balance", 0)
+                                        .apply()
+
+                                    Toast.makeText(context, "Баланс полностью обнулён... Ты потерял всё! ☠️🔥", Toast.LENGTH_LONG).show()
+
+                                    showPromoDialog = false
+                                    promoInput = ""
+                                }
+                                "777", "1488", "52", "паша" -> {
+                                    // Магия Kotlin: мы сгруппировали промокоды, так как у них одинаковая логика проверки на повторное использование
+                                    val promoKey = "promo_${cleanInput}_used"
+                                    val isPromoUsed = sharedPreferences.getBoolean(promoKey, false)
+
                                     if (isPromoUsed) {
                                         Toast.makeText(context, "Этот промокод уже активирован! ❌", Toast.LENGTH_LONG).show()
                                     } else {
+                                        // Определяем сумму бонуса в зависимости от кода
+                                        val bonusAmount = when (cleanInput) {
+                                            "777" -> 250
+                                            "1488" -> 100  // Твой новый промокод на +100 💰
+                                            "52" -> 52     // Твой новый промокод на +52 💰
+                                            "паша" -> 102
+                                            else -> 0
+                                        }
+
                                         val currentBalance = sharedPreferences.getInt("balance", 100)
+                                        val newBalance = currentBalance + bonusAmount
+
+                                        // Сохраняем новый баланс и помечаем именно этот промокод как использованный
                                         sharedPreferences.edit()
-                                            .putInt("balance", currentBalance + 250)
-                                            .putBoolean("promo_777_used", true)
+                                            .putInt("balance", newBalance)
+                                            .putBoolean(promoKey, true)
                                             .apply()
 
-                                        Toast.makeText(context, "Промокод активирован! Получено +250 💰", Toast.LENGTH_LONG).show()
-                                        resetDialog()
+                                        Toast.makeText(context, "Промокод активирован! Получено +$bonusAmount 💰", Toast.LENGTH_LONG).show()
+
+                                        // Закрываем диалог и очищаем поле ввода
+                                        showPromoDialog = false
+                                        promoInput = ""
                                     }
                                 }
-                                else -> Toast.makeText(context, "Неверный код ❌", Toast.LENGTH_SHORT).show()
+                                else -> {
+                                    Toast.makeText(context, "Неверный код ❌", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         } else {
+                            // Здесь остаётся твой старый код применения баланса из режима разработчика (для кода 7772)
                             val newBalance = balanceInput.toIntOrNull() ?: 0
                             sharedPreferences.edit().putInt("balance", newBalance).apply()
-                            Toast.makeText(context, "Баланс успешно изменён на $newBalance 💰", Toast.LENGTH_SHORT).show()
-                            resetDialog()
+
+                            Toast.makeText(
+                                context,
+                                "Баланс успешно изменён на $newBalance 💰",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            showPromoDialog = false
+                            promoInput = ""
+                            balanceInput = ""
+                            isCodeAccepted = false
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8D734B))
@@ -755,4 +857,280 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
         }
     }
 }
+@Composable
+fun FourthScreen(onBackToMenu: () -> Unit) {
+    val context = LocalContext.current
+    val sharedPreferences = remember { context.getSharedPreferences("casino_prefs", Context.MODE_PRIVATE) }
 
+    var balance by remember { mutableStateOf(sharedPreferences.getInt("balance", 100)) }
+    var betInput by remember { mutableStateOf("") }
+    var isSpinning by remember { mutableStateOf(false) }
+
+    val winRecords = remember { mutableStateListOf<WinRecord>() }
+    val coroutineScope = rememberCoroutineScope()
+    val needleAngle = remember { Animatable(0f) }
+
+    // ЯРКАЯ 8-БИТНАЯ ПАЛИТРА И КАСТОМНЫЕ ЦВЕТА
+    val darkBgGradient = Brush.verticalGradient(listOf(Color(0xFF111827), Color(0xFF1F2937)))
+    val bitGreenColor = Color(0xFF00FF00)   // Ядовито-зелёный 8-bit
+    val bitRedColor = Color(0xFFFF0000)     // Чистый красный 8-bit
+    val coffeeCenterColor = Color(0xFF4A3B32) // Кофейный цвет для центра круга
+    val goldBorderColor = Color(0xFFD4AF37)   // Золотой цвет для обводки
+
+    fun saveBalance(newBalance: Int) {
+        sharedPreferences.edit().putInt("balance", newBalance).apply()
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(darkBgGradient)) {
+
+        // 1. ВЕРХНЯЯ ПАНЕЛЬ: БАЛАНС С ПЛАВНОЙ СМЕНОЙ ЦИФР
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0C20)),
+            border = androidx.compose.foundation.BorderStroke(2.dp, goldBorderColor),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 48.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 40.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "БАЛАНС: ", fontSize = 14.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+
+                // Добавили плавную вертикальную прокрутку цифр баланса
+                AnimatedContent(
+                    targetState = balance,
+                    transitionSpec = {
+                        slideInVertically { height -> -height } + fadeIn() togetherWith
+                                slideOutVertically { height -> height } + fadeOut()
+                    },
+                    label = "BalanceAnimation"
+                ) { animatedBalance ->
+                    Text(text = "$animatedBalance 💰", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        // 2. ЦЕНТР: КОЛЕСО АПГРЕЙДА (Шоколадный центр, 8-bit зелёный + бело-молочный)
+        Box(
+            modifier = Modifier
+                .size(280.dp)
+                .align(Alignment.Center),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val center = Offset(size.width / 2, size.height / 2)
+                val strokeWidth = 24.dp.toPx() // Сделали дорожку чуть толще для 8-битного стиля
+                val radius = size.width / 2
+
+                val bitGreenColor = Color(0xFF00FF00)
+                val milkWhiteColor = Color(0xFFFFFDD0)
+                val chocolateColor = Color(0xFF3D2314)
+                // Вместо золотого D4AF37 ставим яркий неоново-голубой (Cyan)
+                val neonBlueColor = Color(0xFF404040)
+
+                // СЛОЙ 1: Цветные дуги (50 на 50). Рисуются строго по линии radius
+                drawArc(
+                    color = bitGreenColor,
+                    startAngle = 0f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth)
+                )
+                drawArc(
+                    color = milkWhiteColor,
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth)
+                )
+
+                // СЛОЙ 2: Внутренний круг шоколадного цвета
+                // Его радиус — это внутренний край цветной дорожки, без зазоров!
+                val innerRadius = radius - (strokeWidth / 2)
+                drawCircle(
+                    color = chocolateColor,
+                    radius = innerRadius,
+                    center = center
+                )
+
+                // СЛОЙ 3: Белая стрелка, летящая строго ПО зелёному или молочному цвету
+                val angleInRadians = (needleAngle.value * PI / 180f)
+
+                // Стрелка начинается на внутреннем краю цветного кольца и заканчивается на внешнем
+                val startX = center.x + innerRadius * cos(angleInRadians).toFloat()
+                val startY = center.y + innerRadius * sin(angleInRadians).toFloat()
+
+                val outerRadius = radius + (strokeWidth / 2)
+                val endX = center.x + outerRadius * cos(angleInRadians).toFloat()
+                val endY = center.y + outerRadius * sin(angleInRadians).toFloat()
+
+                drawLine(
+                    color = Color(0xFF1A0F0A), // ИСПРАВЛЕНО: Вместо Color.White поставили тёмный цвет
+                    start = Offset(startX, startY),
+                    end = Offset(endX, endY),
+                    strokeWidth = 6.dp.toPx()
+                )
+
+
+                drawCircle(
+                    color = neonBlueColor,
+                    radius = outerRadius,
+                    center = center,
+                    style = Stroke(width = 6.dp.toPx())
+                )
+                drawCircle(
+                    color = neonBlueColor,
+                    radius = innerRadius,
+                    center = center,
+                    style = Stroke(width = 8.dp.toPx())
+                )
+
+            }
+
+
+            // ИСПРАВЛЕНО: Текст по центру шоколадного круга
+            Text(
+                text = "50%",
+                color = Color.White,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // 3. БЛОК УПРАВЛЕНИЯ СНИЗУ
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            // ЛЕНТА ЛЕТЯЩИХ ВВЕРХ ВЫИГРЫШЕЙ
+            Box(
+                modifier = Modifier.height(50.dp).fillMaxWidth(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                    winRecords.forEach { record ->
+                        key(record.id) {
+                            AnimatedVisibility(
+                                visible = record.isVisible,
+                                enter = slideInVertically { height -> height } + fadeIn(animationSpec = tween(300)),
+                                exit = slideOutVertically { height -> -height } + fadeOut(animationSpec = tween(500))
+                            ) {
+                                Text(
+                                    text = "+${record.amount} 💰",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFFFFD700)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Поле ввода ставки
+            TextField(
+                value = betInput,
+                onValueChange = { input ->
+                    if (input.length <= 6) {
+                        betInput = input.filter { it.isDigit() }
+                    }
+                },
+                placeholder = { Text("Сумма ставки...", color = Color.Gray) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF0F0C20),
+                    unfocusedContainerColor = Color(0xFF0F0C20),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedIndicatorColor = Color(0xFFD4AF37)
+                ),
+                modifier = Modifier.width(240.dp),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            val currentBet = betInput.toIntOrNull() ?: 0
+            val isBetValid = currentBet > 0 && currentBet <= balance
+
+            Button(
+                onClick = {
+                    if (!isSpinning && isBetValid) {
+                        isSpinning = true
+                        balance -= currentBet
+                        saveBalance(balance)
+
+                        coroutineScope.launch {
+                            val isWin = Random.nextBoolean()
+                            val targetAngle = if (isWin) Random.nextInt(5, 175) else Random.nextInt(185, 355)
+                            val totalRotation = 1440f + targetAngle
+
+                            needleAngle.snapTo(needleAngle.value % 360f)
+
+                            needleAngle.animateTo(
+                                targetValue = totalRotation,
+                                animationSpec = tween(durationMillis = 2000)
+                            )
+
+                            if (isWin) {
+                                val winAmount = currentBet * 2
+                                balance += winAmount
+
+                                val visibilityState = mutableStateOf(true)
+                                val newRecord = WinRecord(
+                                    id = System.currentTimeMillis(),
+                                    amount = winAmount,
+                                    isVisibleState = visibilityState
+                                )
+                                winRecords.add(newRecord)
+
+                                launch {
+                                    kotlinx.coroutines.delay(2000)
+                                    newRecord.isVisible = false
+                                    kotlinx.coroutines.delay(500)
+                                    winRecords.remove(newRecord)
+                                }
+                            }
+
+                            saveBalance(balance)
+                            isSpinning = false
+                        }
+                    }
+                },
+                enabled = !isSpinning && isBetValid,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8D734B),
+                    disabledContainerColor = Color(0xFF3E3129)
+                ),
+                modifier = Modifier.width(240.dp).height(48.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(text = if (isSpinning) "АПГРЕЙД..." else "ЗАПУСТИТЬ АПГРЕЙД ⚡", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Назад в меню",
+                color = Color.Gray,
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .padding(vertical = 4.dp)
+                    .clickable { if (!isSpinning) onBackToMenu() }
+            )
+        }
+    }
+}
