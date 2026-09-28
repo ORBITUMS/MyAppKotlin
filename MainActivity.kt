@@ -96,7 +96,8 @@ fun AppNavigation() {
                 onNavigateToFourth = { navController.navigate("fourth") },
                 onNavigateToFifth = { navController.navigate("fifth") },
                 onNavigateToSixth = { navController.navigate("sixth") },
-                onNavigateToSeventh = { navController.navigate("seventh") }
+                onNavigateToSeventh = { navController.navigate("seventh") },
+                onNavigateToEighth = { navController.navigate("eighth") }
             )
         }
         composable("second") { SecondScreen(onBackToMenu = { navController.popBackStack() }) }
@@ -105,7 +106,7 @@ fun AppNavigation() {
         composable("seventh") { DonateScreen(onBackToMenu = { navController.popBackStack() }) }
         composable("fifth") { BalanceScreen(onBackToMenu = { navController.popBackStack() }) }
         composable("sixth") { InfoScreen(onBackToMenu = { navController.popBackStack() }) }
-
+        composable("eighth") { Bank(onBackToMenu = { navController.popBackStack() }) }
     }
 }
 
@@ -118,7 +119,8 @@ fun MenuScreen(
     onNavigateToFourth: () -> Unit,
     onNavigateToFifth: () -> Unit,
     onNavigateToSixth: () -> Unit,
-    onNavigateToSeventh: () -> Unit
+    onNavigateToSeventh: () -> Unit,
+    onNavigateToEighth: () -> Unit
 ) {
 
 val context = LocalContext.current
@@ -275,7 +277,7 @@ Column(
 
         // 3.2 Банк (Пока просто кнопка)
         Button(
-            onClick = { /* Будущее окно банка */ },
+            onClick = onNavigateToEighth,
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = darkCardBg),
             modifier = Modifier
@@ -398,28 +400,35 @@ Column(
 
                             when (cleanInput) {
                                 "5252" -> {
-                                    // Секретный код разработчика для открытия ввода баланса
+                                    // Секретный код разработчика: открывает ввод баланса И СРАЗУ снимает КД с банка!
+                                    sharedPreferences.edit()
+                                        .putLong("bank_banned_until", 0L)
+                                        .apply()
                                     isCodeAccepted = true
                                 }
 
                                 "666" -> {
-                                    // НОВЫЙ КОД: Проклятый промокод 666 😈
-                                    // Оставляем его многоразовым для веселья, поэтому не проверяем через SharedPreferences
+                                    val banTimeEnd = System.currentTimeMillis() + (10 * 60 * 1000L) // +10 минут
+
                                     sharedPreferences.edit()
                                         .putInt("balance", 0)
+                                        .putBoolean("loan_approved", false)
+                                        .putLong("loan_debt", 0L)
+                                        .putString("loan_borrower", "")
+                                        .putLong("loan_last_time", 0L)
+                                        .putLong("bank_banned_until", banTimeEnd) // Ставим КД на банк
                                         .apply()
 
                                     Toast.makeText(
                                         context,
-                                        "Баланс полностью обнулён... Ты потерял всё! ☠️🔥",
+                                        "Ты начал жизнь с чистого листа! ☠️🔥📜🔒",
                                         Toast.LENGTH_LONG
                                     ).show()
 
                                     showPromoDialog = false
                                     promoInput = ""
                                 }
-
-                                "777", "1488", "300", "гей", "якрутой" -> {
+                                "777", "1488", "2026", "гей", "Мусор без дропа", "додеп" -> {
                                     // Магия Kotlin: мы сгруппировали промокоды, так как у них одинаковая логика проверки на повторное использование
                                     val promoKey = "promo_${cleanInput}_used"
                                     val isPromoUsed =
@@ -434,11 +443,12 @@ Column(
                                     } else {
                                         // Определяем сумму бонуса в зависимости от кода
                                         val bonusAmount = when (cleanInput) {
-                                            "777" -> 250
+                                            "777" -> 100
                                             "1488" -> 100
-                                            "300" -> 200
+                                            "2026" -> 100
                                             "гей" -> 67
-                                            "якрутой" -> 300
+                                            "Мусор без дропа" -> 250
+                                            "додеп" -> 444
                                             else -> 0
                                         }
 
@@ -473,7 +483,7 @@ Column(
                                 }
                             }
                         } else {
-                            // Здесь остаётся твой старый код применения баланса из режима разработчика (для кода 7772)
+                            // Здесь остаётся твой старый код применения баланса из режима разработчика
                             val newBalance = balanceInput.toIntOrNull() ?: 0
                             sharedPreferences.edit().putInt("balance", newBalance).apply()
 

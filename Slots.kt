@@ -49,8 +49,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -431,6 +434,83 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Состояния для нашей рекламы (создайте их в самом верху вашей @Composable функции, если хотите,
+            // но для локального экрана можно оставить прямо перед кнопкой)
+            var showAdScreen by remember { mutableStateOf(false) }
+            var adTimerSeconds by remember { mutableStateOf(15) }
+
+            // Логика таймера рекламы
+            LaunchedEffect(showAdScreen) {
+                if (showAdScreen) {
+                    adTimerSeconds = 15
+                    while (adTimerSeconds > 0) {
+                        delay(1000L)
+                        adTimerSeconds--
+                    }
+                    // Время вышло — выдаем честную награду
+                    balance += 30
+                    lastBonusTime = System.currentTimeMillis()
+                    sharedPreferences.edit().putLong("last_bonus_time", lastBonusTime).apply()
+                    saveCasinoData(balance, maxWin)
+                    showAdScreen = false
+                }
+            }
+
+            // ОБНОВЛЕННЫЙ РЕКЛАМНЫЙ ЭКРАН (Теперь через Dialog — ничего не прыгает вверх!)
+            if (showAdScreen) {
+                Dialog(
+                    onDismissRequest = { /* Запрещаем закрывать рекламу кликом мимо окна */ },
+                    properties = DialogProperties(
+                        usePlatformDefaultWidth = false // Позволяет окну растянуться на ВЕСЬ экран смартфона
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF000000)) // Глухой стильный чёрный экран
+                    ) {
+                        // ТАЙНАЯ ПАСХАЛКА: Сделали квадрат меньше (всего 24.dp) в самом углу
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .align(Alignment.TopStart)
+                                .clickable {
+                                    // Мгновенный секретный пропуск
+                                    balance += 30
+                                    lastBonusTime = System.currentTimeMillis()
+                                    sharedPreferences.edit().putLong("last_bonus_time", lastBonusTime).apply()
+                                    saveCasinoData(balance, maxWin)
+                                    showAdScreen = false
+                                }
+                        )
+
+                        // Центральный блок с таймером
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "ЭТО РЕКЛАМА",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF222222), // Сделали надпись ещё более тусклой и строгой
+                                letterSpacing = 4.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Получение бонуса через: $adTimerSeconds с",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
             // Кнопка утешительного приза
             if (balance < 10 && bet == 0) {
                 val timePassed = currentTime - lastBonusTime
@@ -441,14 +521,11 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                 Button(
                     onClick = {
                         if (isReady) {
-                            balance += 30
-                            lastBonusTime = System.currentTimeMillis()
-                            sharedPreferences.edit().putLong("last_bonus_time", lastBonusTime)
-                                .apply()
-                            saveCasinoData(balance, maxWin)
+                            // Вместо моментальной выдачи запускаем рекламное окно
+                            showAdScreen = true
                         }
                     },
-                    enabled = isReady,
+                    enabled = isReady && !showAdScreen,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50),
                         disabledContainerColor = Color(0xFF2E4F32)
@@ -472,8 +549,9 @@ fun ThirdScreen(onBackToMenu: () -> Unit) {
                 fontSize = 16.sp,
                 modifier = Modifier
                     .padding(vertical = 4.dp)
-                    .clickable { if (!isSpinning) onBackToMenu() }
+                    .clickable { if (!isSpinning && !showAdScreen) onBackToMenu() }
             )
         }
     }
 }
+
