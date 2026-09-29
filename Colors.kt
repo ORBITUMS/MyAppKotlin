@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +52,9 @@ val gameColors = listOf(
     GameColor("Фиолетовый", Color(0xFF4B0082)), // Тёмно-фиолетовый (Индиго)
     GameColor("Розовый", Color(0xFFFF69B4))        // Ярко-розовый
 )
-
+val richLightGradient = Brush.verticalGradient(
+    colors = listOf(Color(0xFFFFFDF9), Color(0xFFF9EED8))
+)
 @Composable
 fun SecondScreen(onBackToMenu: () -> Unit) {
     val context = LocalContext.current
