@@ -60,7 +60,7 @@ fun AppNavigation() {
         composable("sixth") { InfoScreen(onBackToMenu = { navController.popBackStack() }) }
         composable("eighth") { Bank(onBackToMenu = { navController.popBackStack() }) }
         composable("nineth") { FreeSpinsScreen(onBackToMenuFr = { navController.popBackStack() }) }
-        composable("tenth") { InfoScreen(onBackToMenu = { navController.popBackStack() }) }
+        composable("tenth") { MultiplayerScreen(onBackToMenu = { navController.popBackStack() }) }
     }
 }
 
@@ -94,15 +94,15 @@ val PROMO_CODES: List<PromoCode> = listOf(
     PromoCode("777", bonusSpins = 10),
     PromoCode("1488", bonusCash = 100),
     PromoCode("2026", bonusCash = 100),
-    PromoCode("гей", bonusSpins = 67),
+    PromoCode("гей", bonusSpins = 5),
     PromoCode("мусор без дропа", bonusCash = 250),
     PromoCode("додеп", bonusCash = 444),
-    PromoCode("додеп2", bonusSpins = 50),
+    PromoCode("додеп2", bonusSpins = 20),
 
     // --- Промокоды на фриспины ---
     PromoCode("гей2", bonusSpins = 20),
     PromoCode("free", bonusSpins = 10),
-    PromoCode("паша", bonusSpins = 5)
+    PromoCode("паша", bonusSpins = 67)
 )
 
 @Composable
@@ -246,7 +246,7 @@ fun MenuScreen(
                     emoji = "👥",
                     text = "Мультиплеер",
                     accent = NeonCyan,
-                    onClick = onNavigateToSixth,
+                    onClick = onNavigateToTenth,
                     modifier = Modifier.weight(1f)
                 )
                 CasinoButton(
@@ -298,7 +298,7 @@ fun MenuScreen(
                     val cleanInput = promoInput.trim()
                     when (cleanInput) {
                         // ---- Секретные коды ----
-                        "5252" -> {
+                        "1234" -> {
                             sharedPreferences.edit()
                                 .putLong("bank_banned_until", 0L)
                                 .apply()

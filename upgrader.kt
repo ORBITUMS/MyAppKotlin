@@ -14,7 +14,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +70,23 @@ private val FsNeonCyan = Color(0xFF00E5FF)
 private val FsNeonOrange = Color(0xFFFF4500)
 private val FsNeonGreen = Color(0xFF00FF7F)
 private val FsNeonPurple = Color(0xFFD67BFF)
+// Голубо-алмазный для фриспинов
+private val DiamondBlue = Color(0xFF6FE7FF)
+
+// ===== Модель записи в ленте =====
+// kind: "money" — выигрыш в монетах (жёлтый)
+//       "spins" — бонус фриспинов за проигрыш (голубо-алмазный)
+data class WinRecord(
+    val id: Long = System.currentTimeMillis(),
+    val amount: Int,
+    val kind: String = "money",
+    val isVisibleState: androidx.compose.runtime.MutableState<Boolean> =
+        androidx.compose.runtime.mutableStateOf(true)
+) {
+    var isVisible: Boolean
+        get() = isVisibleState.value
+        set(value) { isVisibleState.value = value }
+}
 
 @Composable
 fun FourthScreen(onBackToMenu: () -> Unit) {
@@ -80,7 +96,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
 
     // Глобальные счётчики
     var balance by remember { mutableStateOf(sharedPreferences.getInt("balance", 100)) }
-    val freeSpins = remember { sharedPreferences.getInt("free_spins", 0) }
+    var freeSpins by remember { mutableStateOf(sharedPreferences.getInt("free_spins", 0)) }
 
     var betInput by remember { mutableStateOf("") }
     var isSpinning by remember { mutableStateOf(false) }
@@ -92,10 +108,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
     var winInput by remember { mutableStateOf("") }
     var winChance by remember { mutableStateOf(50) }
 
-    // Выбранный пресет, чтобы кнопка подсвечивалась и влияла на ввод
     var selectedPreset by remember { mutableStateOf<String?>(null) }
-
-    // Отслеживаем фокус на поле "Выигрыш" — при фокусе сбрасываем пресет
     var winFieldFocused by remember { mutableStateOf(false) }
 
     val darkBgGradient = Brush.verticalGradient(listOf(Color(0xFF111827), Color(0xFF1F2937)))
@@ -104,7 +117,10 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
         sharedPreferences.edit().putInt("balance", newBalance).apply()
     }
 
-    // Функция применения пресета к текущей ставке
+    fun saveFreeSpins(newSpins: Int) {
+        sharedPreferences.edit().putInt("free_spins", newSpins).apply()
+    }
+
     fun applyPresetToBet(preset: String) {
         val currentBet = betInput.toIntOrNull() ?: return
         if (currentBet <= 0) return
@@ -117,7 +133,6 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                 winInput = (currentBet * 4).toString()
                 winChance = 25
             }
-            // 70% — целочисленно, без float
             "70%" -> {
                 winInput = (currentBet * 100 / 70).toString()
                 winChance = 70
@@ -223,6 +238,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
+            // Лента выигрышей/бонусов
             Box(
                 modifier = Modifier.height(50.dp).fillMaxWidth(),
                 contentAlignment = Alignment.BottomCenter
@@ -238,12 +254,23 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                 enter = slideInVertically { height -> height } + fadeIn(animationSpec = tween(300)),
                                 exit = slideOutVertically { height -> -height } + fadeOut(animationSpec = tween(500))
                             ) {
-                                Text(
-                                    text = "+${record.amount} 💰",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = FsGoldAccent
-                                )
+                                if (record.kind == "spins") {
+                                    // Голубо-алмазная надпись для фриспинов
+                                    Text(
+                                        text = "+${record.amount} 🎁",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = DiamondBlue
+                                    )
+                                } else {
+                                    // Жёлтая для монет
+                                    Text(
+                                        text = "+${record.amount} 💰",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = FsGoldAccent
+                                    )
+                                }
                             }
                         }
                     }
@@ -277,13 +304,12 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                         modifier = Modifier.padding(bottom = 10.dp)
                     )
 
-                    // === РЯД ПРЕСЕТОВ (новый порядок) ===
+                    // === РЯД ПРЕСЕТОВ ===
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Порядок: x3, x4, 100x, 70%, 50%, 10%
                         val presets = listOf("x3", "x4", "100x", "70%", "50%", "10%")
 
                         presets.forEach { preset ->
@@ -395,7 +421,6 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                             TextField(
                                 value = winInput,
                                 onValueChange = { input ->
-                                    // Ручной ввод всегда сбрасывает пресет
                                     if (selectedPreset != null) selectedPreset = null
 
                                     if (input.length <= 7) {
@@ -423,7 +448,6 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                 placeholder = { Text("0", color = Color.Gray) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                // ПУНКТ 1: при касании поля "Выигрыш" — сбрасываем активный пресет
                                 modifier = Modifier.onFocusChanged { focusState ->
                                     if (focusState.isFocused && !winFieldFocused) {
                                         selectedPreset = null
@@ -487,13 +511,15 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                     )
 
                                     if (isWin) {
+                                        // Обычный выигрыш в монетах
                                         val winAmount = winInput.toIntOrNull() ?: (currentBet * 2)
                                         balance += winAmount
+                                        saveBalance(balance)
 
                                         val newRecord = WinRecord(
                                             id = System.currentTimeMillis(),
                                             amount = winAmount,
-                                            isVisibleState = mutableStateOf(true)
+                                            kind = "money"
                                         )
                                         winRecords.add(newRecord)
 
@@ -503,6 +529,28 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                             kotlinx.coroutines.delay(500)
                                             winRecords.remove(newRecord)
                                         }
+                                    } else {
+                                        // ПРОИГРЫШ: считаем фриспины за ставку ≥ 500
+                                        // 500 монет = 1 спин, 1000 = 2, 1500 = 3 и т.д.
+                                        val spinsBonus = currentBet / 500
+                                        if (spinsBonus > 0) {
+                                            freeSpins += spinsBonus
+                                            saveFreeSpins(freeSpins)
+
+                                            val newRecord = WinRecord(
+                                                id = System.currentTimeMillis(),
+                                                amount = spinsBonus,
+                                                kind = "spins"
+                                            )
+                                            winRecords.add(newRecord)
+
+                                            launch {
+                                                kotlinx.coroutines.delay(2000)
+                                                newRecord.isVisible = false
+                                                kotlinx.coroutines.delay(500)
+                                                winRecords.remove(newRecord)
+                                            }
+                                        }
                                     }
 
                                     if ((betInput.toIntOrNull() ?: 0) > balance) {
@@ -510,7 +558,6 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                         winInput = ""
                                     }
 
-                                    saveBalance(balance)
                                     isSpinning = false
                                 }
                             }
@@ -549,7 +596,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
     }
 }
 
-// ===== Локальная копия TopBar — 1:1 как в MenuScreen =====
+// ===== Локальная копия TopBar — 1:1 как в MenuScreen, но с анимацией обоих счётчиков =====
 @Composable
 private fun TopBarCasinoFourth(
     balance: Int,
@@ -580,15 +627,18 @@ private fun TopBarCasinoFourth(
                 color = FsGoldAccent
             )
             Spacer(modifier = Modifier.weight(1f))
-            StatChipFourth(emoji = "💰", value = balance.toString(), accent = FsGoldAccent)
+
+            // Плавное изменение баланса
+            StatChipFourth(emoji = "💰", value = balance, accent = FsGoldAccent)
             Spacer(modifier = Modifier.width(8.dp))
-            StatChipFourth(emoji = "🎁", value = freeSpins.toString(), accent = FsNeonCyan)
+            // Плавное изменение фриспинов
+            StatChipFourth(emoji = "🎁", value = freeSpins, accent = FsNeonCyan)
         }
     }
 }
 
 @Composable
-private fun StatChipFourth(emoji: String, value: String, accent: Color) {
+private fun StatChipFourth(emoji: String, value: Int, accent: Color) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -599,11 +649,21 @@ private fun StatChipFourth(emoji: String, value: String, accent: Color) {
     ) {
         Text(text = emoji, fontSize = 14.sp)
         Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = value,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Black,
-            color = Color.White
-        )
+        // Плавная вертикальная смена значения
+        AnimatedContent(
+            targetState = value,
+            transitionSpec = {
+                slideInVertically { h -> -h } + fadeIn() togetherWith
+                        slideOutVertically { h -> h } + fadeOut()
+            },
+            label = "StatChipValueAnim"
+        ) { animatedValue ->
+            Text(
+                text = animatedValue.toString(),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                color = Color.White
+            )
+        }
     }
 }
