@@ -1,6 +1,8 @@
 package com.example.myfirstapp
 
 import android.content.Context
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,13 +24,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 // ===== Общие цвета (как в остальных экранах) =====
- val MpDarkBg = Color(0xFF0F0C20)
- val MpGoldAccent = Color(0xFFFFD700)
- val MpNeonCyan = Color(0xFF00E5FF)
- val MpNeonGreen = Color(0xFF00FF7F)
- val MpNeonPurple = Color(0xFFD67BFF)
+val MpDarkBg = Color(0xFF0F0C20)
+val MpGoldAccent = Color(0xFFFFD700)
+val MpNeonCyan = Color(0xFF00E5FF)
+val MpNeonGreen = Color(0xFF00FF7F)
+val MpNeonPurple = Color(0xFFD67BFF)
 
 // ===== Скидочные пакеты фриспинов =====
 // spins — сколько даём, price — итоговая цена со скидкой, discountPercent — сколько процентов скидка (для отображения)
@@ -225,6 +230,43 @@ private fun BuySpinsScreen(
     var freeSpins by remember { mutableStateOf(sharedPreferences.getInt("free_spins", 0)) }
     var selectedPack by remember { mutableStateOf<SpinPack?>(null) }
 
+    // ===== ОВЕРЛЕЙ ОБРАБОТКИ =====
+    var showProcessing by remember { mutableStateOf(false) }
+    var pendingSpins by remember { mutableStateOf(0) }
+    var pendingPrice by remember { mutableStateOf(0) }
+    var progress by remember { mutableStateOf(0f) }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 400),
+        label = "ProcessingProgress"
+    )
+
+    LaunchedEffect(showProcessing) {
+        if (showProcessing) {
+            progress = 0f
+            val steps = Random.nextInt(5, 9)
+            val stepDelay = Random.nextLong(300L, 500L)
+            for (i in 1..steps) {
+                delay(stepDelay)
+                progress = i.toFloat() / steps
+            }
+            delay(200)
+
+            freeSpins += pendingSpins
+            sharedPreferences.edit().putInt("free_spins", freeSpins).apply()
+
+            android.widget.Toast.makeText(
+                context,
+                "Куплено +$pendingSpins фриспинов за $pendingPrice 💰",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+
+            showProcessing = false
+            progress = 0f
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -266,7 +308,6 @@ private fun BuySpinsScreen(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Разбиваем список на пары и рисуем рядами
             SPIN_PACKS.chunked(2).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -280,7 +321,6 @@ private fun BuySpinsScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    // Если в ряду 1 элемент — добавь пустышку для выравнивания
                     if (row.size == 1) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
@@ -298,7 +338,7 @@ private fun BuySpinsScreen(
         )
     }
 
-    // Диалог подтверждения покупки
+    // ===== ДИАЛОГ ПОДТВЕРЖДЕНИЯ =====
     if (selectedPack != null) {
         PurchaseDialog(
             pack = selectedPack!!,
@@ -307,23 +347,87 @@ private fun BuySpinsScreen(
             onConfirm = {
                 val pack = selectedPack!!
                 if (balance >= pack.price) {
+                    // Списываем монеты сразу
                     balance -= pack.price
-                    freeSpins += pack.spins
+                    sharedPreferences.edit().putInt("balance", balance).apply()
 
-                    sharedPreferences.edit()
-                        .putInt("balance", balance)
-                        .putInt("free_spins", freeSpins)
-                        .apply()
+                    // Запоминаем, что начислить после "обработки"
+                    pendingSpins = pack.spins
+                    pendingPrice = pack.price
 
-                    android.widget.Toast.makeText(
-                        context,
-                        "Куплено +${pack.spins} фриспинов за ${pack.price} 💰",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    selectedPack = null
+                    showProcessing = true
+                } else {
+                    selectedPack = null
                 }
-                selectedPack = null
             }
         )
+    }
+
+    // ===== ОВЕРЛЕЙ "ОБРАБОТКА" =====
+    if (showProcessing) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.78f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF12101F)),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.5.dp,
+                    brush = Brush.horizontalGradient(listOf(MpGoldAccent, Color(0xFFFFA751)))
+                ),
+                modifier = Modifier
+                    .fillMaxWidth(0.78f)
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        color = MpGoldAccent,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(56.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Text(
+                        text = "${(animatedProgress * 100).toInt()}%",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MpGoldAccent
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color(0xFF1A1730))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(animatedProgress)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(MpGoldAccent, Color(0xFFFFA751))
+                                    )
+                                )
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

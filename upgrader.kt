@@ -304,7 +304,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                         modifier = Modifier.padding(bottom = 10.dp)
                     )
 
-                    // === РЯД ПРЕСЕТОВ ===
+                    // === РЯД ПРЕСЕТОВ (заблокированы во время спина) ===
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -361,7 +361,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // === СТАВКА И ВЫИГРЫШ ===
+                    // === СТАВКА И ВЫИГРЫШ (заблокированы во время спина) ===
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -397,12 +397,16 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                 },
                                 placeholder = { Text("0", color = Color.Gray) },
                                 singleLine = true,
+                                enabled = !isSpinning,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color(0xFF1A1730),
                                     unfocusedContainerColor = Color(0xFF1A1730),
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
+                                    disabledContainerColor = Color(0xFF1A1730),
+                                    disabledTextColor = Color.Gray,
+                                    disabledIndicatorColor = Color(0xFF3A3F58),
                                     focusedIndicatorColor = FsNeonOrange,
                                     unfocusedIndicatorColor = Color(0xFF3A3F58)
                                 ),
@@ -447,6 +451,7 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                 },
                                 placeholder = { Text("0", color = Color.Gray) },
                                 singleLine = true,
+                                enabled = !isSpinning,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.onFocusChanged { focusState ->
                                     if (focusState.isFocused && !winFieldFocused) {
@@ -459,6 +464,9 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                     unfocusedContainerColor = Color(0xFF1A1730),
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
+                                    disabledContainerColor = Color(0xFF1A1730),
+                                    disabledTextColor = Color.Gray,
+                                    disabledIndicatorColor = Color(0xFF3A3F58),
                                     focusedIndicatorColor = FsNeonGreen,
                                     unfocusedIndicatorColor = Color(0xFF3A3F58)
                                 ),
@@ -531,7 +539,6 @@ fun FourthScreen(onBackToMenu: () -> Unit) {
                                         }
                                     } else {
                                         // ПРОИГРЫШ: считаем фриспины за ставку ≥ 500
-                                        // 500 монет = 1 спин, 1000 = 2, 1500 = 3 и т.д.
                                         val spinsBonus = currentBet / 500
                                         if (spinsBonus > 0) {
                                             freeSpins += spinsBonus
